@@ -1,0 +1,30 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# runtime data (sqlite db, logs)
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# test / lint artifacts
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# tool state
+.omc/
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
