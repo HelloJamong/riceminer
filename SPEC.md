@@ -5,32 +5,33 @@
 한국 커뮤니티 핫딜 게시판을 주기적으로 크롤링해 새 게시글을 Discord 채널에 임베드 형식으로 전송하는 봇.
 Discord 슬래시 명령어로 사이트별 크롤링 ON/OFF, 주기 조정을 운영 중 실시간으로 제어한다.
 
-대상 사이트 (4개, 코드명 고정):
+대상 사이트 (3개, 코드명 고정):
 | 코드 | 사이트 | URL |
 |---|---|---|
 | `arca` | 아카라이브 핫딜 | https://arca.live/b/hotdeal |
 | `quasarzone` | 퀘이사존 지름/알뜨미 | https://quasarzone.com/bbs/qb_saleinfo |
 | `fmkorea` | FM코리아 핫딜 | https://www.fmkorea.com/hotdeal |
-| `zod` | Zod 특가 | https://zod.kr/deal |
+
+Zod 특가(https://zod.kr/deal)는 봇 차단으로 브라우저 기반 크롤링(StealthyFetcher)이 필요해 활성 목록에서 제외한다. `crawlers/zod.py`는 구현·테스트까지 완료된 상태로 남겨두며, 재활성화 시 `config.SITE_CODES`에 다시 추가하면 된다.
 
 ## 2. Commands
 
 ### 개발/실행
 ```bash
-pip install -r requirements.txt
-python -m playwright install   # Scrapling StealthyFetcher(camoufox) 의존
+pip install "scrapling[fetchers]" discord.py python-dotenv
+scrapling install              # Scrapling StealthyFetcher(camoufox) 브라우저 의존성
 cp .env.example .env           # DISCORD_TOKEN, CHANNEL_ID 채우기
 python bot.py                  # 로컬 실행
 
 pytest                         # 테스트 (라이브 크롤링 없음, 저장된 HTML fixture 사용)
 
-docker compose up -d --build   # 상시 운영
+docker compose up -d           # 상시 운영 (Dockerfile 없이 Scrapling 공식 이미지 사용)
 ```
 
 ### Discord 슬래시 명령어
 | 명령어 | 설명 |
 |---|---|
-| `/site list` | 4개 사이트의 활성 상태·주기 조회 |
+| `/site list` | 활성 사이트(3개)의 상태·주기 조회 |
 | `/site on <code>` / `/site off <code>` | 사이트별 크롤링 ON/OFF |
 | `/interval set <code> <seconds>` | 사이트별 크롤링 주기 변경 (하한 60초 강제) |
 | `/interval get <code>` | 현재 적용 주기 조회 |
@@ -50,14 +51,12 @@ riceminer/
     arca.py
     quasarzone.py
     fmkorea.py
-    zod.py
+    zod.py               # 구현·테스트 완료, 봇 차단으로 SITE_CODES에서만 제외(비활성)
   tests/
     fixtures/*.html     # 사이트별 저장된 샘플 페이지
     test_crawlers.py    # fixture 파싱 검증 (네트워크 호출 없음)
     test_db.py          # in-memory sqlite로 dedup/설정 로직 검증
-  Dockerfile
-  docker-compose.yml
-  requirements.txt
+  docker-compose.yml    # Dockerfile 없이 Scrapling 공식 이미지(pyd4vinci/scrapling) 기반으로 구동
   .env.example
 ```
 
@@ -84,12 +83,13 @@ riceminer/
 **항상 한다**
 - 모든 사이트에 하드 하한 60초 인터벌 강제 (Discord 명령어로도 우회 불가, `config.MIN_INTERVAL_SEC`에서 상수 관리).
 - 사이트별 실제 기본 주기는 180초(3분) 권장값으로 시작, 이후 요청 실패율(403/429/캡차)을 관찰하며 운영 중 조정.
-- 요청 간 랜덤 지터(jitter) 추가, 동일 IP에서 4개 사이트에 동시 요청 대신 순차 처리.
+- 요청 간 랜덤 지터(jitter) 추가, 동일 IP에서 여러 사이트에 동시 요청 대신 순차 처리.
 - 크롤링 실패(403/429/타임아웃)는 예외를 죽이지 않고 로그로 남기고 다음 tick으로 넘어감 (한 사이트 장애가 전체를 멈추지 않게).
 - `DISCORD_TOKEN` 등 시크릿은 `.env`로만 관리, 저장소에 커밋 금지 (`.gitignore` 등록).
 
 **먼저 물어본다**
-- 4개 사이트 외 신규 대상 사이트 추가.
+- 활성 3개 사이트(+비활성 zod) 외 신규 대상 사이트 추가.
+- zod 재활성화(`SITE_CODES`에 다시 추가).
 - `MIN_INTERVAL_SEC` 하한값 자체를 낮추는 변경.
 - 배포 환경 변경 (Docker → 다른 방식).
 - Discord가 아닌 다른 알림 채널(텔레그램 등) 추가.
@@ -148,9 +148,23 @@ YY.메이저.마이너   예: 26.1.0
   ```
 - 배포된 컨테이너 갱신은 digest(SHA256) 비교 기반 자동 업데이트로 구성 (`latest` 태그 기준). `diun` 또는 `docker manifest inspect`를 이용한 폴링 스크립트로 감지 후 `docker compose pull && docker compose up -d`.
 
----
+## 8. 진행 상태 및 다음 단계
 
-**결정 필요 항목 (확인 후 진행)**
-1. 기본 크롤링 주기 180초(3분), 하드 하한 60초 — 이 값으로 시작해도 괜찮을까요? (사이트별로 다르게 시작하고 싶으면 알려주세요)
-2. Discord 슬래시 커맨드는 서버 관리자만 사용 가능하도록 제한할 예정인데, 맞는 방향인가요?
-3. `requirements.txt`에 `scrapling`, `discord.py`(or `py-cord`), `python-dotenv` 정도만 넣을 계획입니다 — 추가로 필요한 게 있나요?
+**완료**
+- `config.py`, `db.py` + `tests/test_db.py`
+- `crawlers/base.py` + `arca.py`/`quasarzone.py`/`fmkorea.py`/`zod.py`(비활성) + `tests/test_crawlers.py` (4개 사이트 fixture 기반, 실사이트 라이브 크롤링으로 필드 검증까지 완료)
+- `scheduler.py`(순차 방문, 매 tick 재조회, 하한 방어적 재검증, 예외 격리, dedup 후 큐 전달) + `tests/test_scheduler.py`
+- `docker-compose.yml`, `.env.example`
+
+**남은 작업 (Phase 5 — `bot.py`, 미착수)**
+- Discord 로그인 및 슬래시 명령어 구현: `/site list|on|off`, `/interval set|get` (관리자 role 제한, `SITE_CODES` 검증, `/interval set`은 `db.set_interval`의 `ValueError`를 Discord 에러 메시지로 노출)
+- `format_embed(post: Post) -> discord.Embed` 순수 함수로 분리 (제목/썸네일/링크)
+- `scheduler.py`의 `asyncio.Queue`를 백그라운드 태스크로 소비해 임베드 전송
+- **수동 검증 필요(자동화 불가)**: 테스트용 Discord 서버·봇 토큰 필요. 진행 전 준비 여부 확인.
+
+**Phase 6 — 통합 검증 (미착수)**
+- `ruff check .` / `pytest -v` 전체 통과 재확인, `docker compose up -d`로 실제 기동 확인, 로그에 시크릿 노출 없는지 확인 후 `docker compose down`
+
+**보류/결정 필요**
+- `zod` 재활성화 여부 (현재 비활성, 사유는 섹션 1 참고)
+- `Post`에 `price`/`posted_at` 필드 추가 여부 (현재 title/url/thumbnail만 구현)
