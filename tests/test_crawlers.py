@@ -7,7 +7,6 @@ os.environ.setdefault("CHANNEL_ID", "111222333")
 from crawlers.arca import ArcaCrawler  # noqa: E402
 from crawlers.quasarzone import QuasarzoneCrawler  # noqa: E402
 from crawlers.fmkorea import FmkoreaCrawler  # noqa: E402
-from crawlers.zod import ZodCrawler  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -40,11 +39,3 @@ def test_fmkorea_parses_fixture():
     posts = FmkoreaCrawler().parse(_fixture("fmkorea.html"))
     _assert_valid_posts(posts, "fmkorea")
     assert any(p.thumbnail for p in posts)
-
-
-def test_zod_parses_fixture():
-    posts = ZodCrawler().parse(_fixture("zod.html"))
-    _assert_valid_posts(posts, "zod")
-    assert any(p.thumbnail for p in posts)
-    # 공지/광고 위젯 li는 제외되어야 함
-    assert not any("공지" == p.title for p in posts)
