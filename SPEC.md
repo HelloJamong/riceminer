@@ -23,7 +23,7 @@ python bot.py                  # 로컬 실행
 
 pytest                         # 테스트 (라이브 크롤링 없음, 저장된 HTML fixture 사용)
 
-docker compose up -d           # 상시 운영 (Dockerfile 없이 Scrapling 공식 이미지 사용)
+docker compose up -d --build    # 상시 운영 (Dockerfile로 Scrapling 공식 이미지 위에 riceminer 이미지 빌드)
 ```
 
 ### Discord 슬래시 명령어
@@ -45,7 +45,7 @@ riceminer/
   bot.py               # 엔트리포인트: 봇 로그인, 슬래시 커맨드 등록, 스케줄러 기동
   scheduler.py          # 사이트별 asyncio 루프, DB에서 interval/enabled를 매 tick 재조회
   db.py                 # sqlite3 (stdlib) 래퍼: sites, seen_posts 테이블
-  config.py             # .env 로딩 (DISCORD_TOKEN, CHANNEL_ID, MIN_INTERVAL_SEC)
+  config.py             # .env 로딩 (DISCORD_TOKEN, MIN_INTERVAL_SEC) — post/log 채널은 DB(bot_settings)에서 관리
   crawlers/
     base.py             # Crawler 인터페이스 (fetch → parse → list[Post])
     arca.py
@@ -55,12 +55,15 @@ riceminer/
     fixtures/*.html     # 사이트별 저장된 샘플 페이지
     test_crawlers.py    # fixture 파싱 검증 (네트워크 호출 없음)
     test_db.py          # in-memory sqlite로 dedup/설정 로직 검증
-  docker-compose.yml    # Dockerfile 없이 Scrapling 공식 이미지(pyd4vinci/scrapling) 기반으로 구동
+  Dockerfile            # FROM pyd4vinci/scrapling — /app을 통째로 덮지 않고 봇 파일만 얹음(아래 참고)
+  docker-compose.yml    # build: . 로 riceminer:latest 이미지 빌드, sqlite 파일만 bind mount
   .env.example
 ```
 
+- **Dockerfile 주의사항**: 베이스 이미지 `/app`은 Scrapling 자체 소스이자 `uv` 가상환경(`.venv`) 위치 — `lxml` 등 Scrapling 의존성이 시스템 pip가 아니라 이 venv에만 설치돼 있음. 그래서 (1) `/app`을 bind mount로 통째로 덮으면 `scrapling` 자체가 사라지고, (2) 시스템 pip로 `discord.py`를 설치하면 `uv run` 실행 시 venv가 분리돼 서로 못 봄. 반드시 `uv pip install --python /app/.venv/bin/python3 ...`로 같은 venv에 설치하고 `uv run python3 bot.py`로 실행해야 하며, 베이스 이미지의 `ENTRYPOINT`(`uv run scrapling`)도 `ENTRYPOINT []`로 초기화해야 함.
+
 - 사이트 추가 시: `crawlers/<code>.py` 1개 파일 + `sites` 테이블 INSERT 1행으로 확장 (새 사이트는 사용자 승인 후에만 추가, boundaries 참조).
-- `Post` 데이터클래스(title, url, price, thumbnail, posted_at 등)를 크롤러 공통 반환 타입으로 사용해 Discord embed 변환 로직을 크롤러와 분리.
+- `Post` 데이터클래스(site, title, url, thumbnail, price, shipping)를 크롤러 공통 반환 타입으로 사용해 Discord embed 변환 로직을 크롤러와 분리.
 
 ## 4. Code Style
 
@@ -145,6 +148,7 @@ YY.메이저.마이너   예: 26.1.0
   docker push riceminer:latest && docker push riceminer:YY.메이저.마이너
   ```
 - 배포된 컨테이너 갱신은 digest(SHA256) 비교 기반 자동 업데이트로 구성 (`latest` 태그 기준). `diun` 또는 `docker manifest inspect`를 이용한 폴링 스크립트로 감지 후 `docker compose pull && docker compose up -d`.
+- **현재 상태(의도적 보류)**: 위 push 절차는 문서화만 돼 있고 아직 실행/자동화 안 함. GitHub Actions 워크플로우(`.github/workflows`)도 없음 — `DOCKER_USERNAME`/`DOCKER_PASSWORD` 리포지토리 시크릿은 등록돼 있지만 소비하는 워크플로우가 없는 상태. 로컬 `docker compose build`로 이미지를 빌드해 자체 호스팅으로만 운영 중이며, CI/CD·Docker Hub 배포 자동화는 명시적 요청이 있을 때 별도로 진행한다.
 
 ## 8. 진행 상태 및 다음 단계
 
@@ -158,9 +162,8 @@ YY.메이저.마이너   예: 26.1.0
 - `Post`에 `price`/`shipping` 필드 추가, 임베드에 사이트명(author)·가격·배송비 표시.
 - 썸네일을 외부 URL로 링크하지 않고 봇이 직접 다운로드해 Discord 첨부파일로 전송(`fetch_thumbnail_file`). 일부 이미지 CDN(Cloudflare)이 기본 HTTP 클라이언트 UA를 차단해 링크 임베드가 깨지는 문제 회피용 — 브라우저 UA + Referer 헤더로 다운로드.
 - 실사용 검증(수동): 테스트 Discord 서버에서 `/channel set`, `/site list`, 임베드 전송(썸네일·가격·배송비 포함) 확인 완료. 정상 스케줄러 운영으로 전환.
+- **Phase 6 — Docker 통합 검증 완료**: `Dockerfile` 추가(공식 이미지 위에 봇 파일만 얹는 방식, RHEL 호스트에서 Scrapling 직접 설치 불가 문제 회피), `docker-compose.yml`을 `build: .` + sqlite 파일 단위 bind mount로 변경. `docker compose up -d --build`로 로그인·크롤링·dedup 상태 유지까지 정상 확인, 로그에 시크릿 노출 없음. 로컬 `python bot.py`는 종료하고 Docker 컨테이너로 완전히 전환.
 
 **남은 작업**
-- 없음 — 정상 운영 중. FM코리아는 사이트 자체 요청 제한(430)에 걸리면 해당 tick만 스킵되고 자동 회복됨(코드 대응 불필요, 예외 격리로 이미 처리됨).
-
-**Phase 6 — 통합 검증 (미착수)**
-- `docker compose up -d`로 실제 기동 확인, 로그에 시크릿 노출 없는지 확인 후 `docker compose down`
+- 없음 — Docker 컨테이너로 정상 운영 중. FM코리아가 사이트 자체 요청 제한(430)에 걸리면 해당 tick만 스킵되고 자동 회복됨 (코드 대응 불필요, 예외 격리로 이미 처리됨).
+- CI/CD 워크플로우·Docker Hub 자동 배포는 의도적으로 아직 구성 안 함 (7절 참고) — 필요해지면 별도 요청 시 진행.

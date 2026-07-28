@@ -1,12 +1,9 @@
 services:
   riceminer:
-    image: pyd4vinci/scrapling
-    working_dir: /app
-    volumes:
-      - .:/app
+    build: .
+    image: riceminer:latest
     env_file:
       - .env
-    command: >
-      bash -c "pip install --no-cache-dir discord.py python-dotenv &&
-               python bot.py"
+    volumes:
+      - ./riceminer.db:/app/riceminer.db
     restart: unless-stopped
