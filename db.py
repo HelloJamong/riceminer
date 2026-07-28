@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS seen_posts (
     seen_at INTEGER NOT NULL,
     UNIQUE(site_code, post_url)
 );
+
+CREATE TABLE IF NOT EXISTS bot_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    post_channel_id INTEGER,
+    log_channel_id INTEGER
+);
 """
 
 
@@ -26,6 +32,22 @@ def init_db(conn: sqlite3.Connection) -> None:
             "INSERT OR IGNORE INTO sites (code, enabled, interval_sec) VALUES (?, 1, ?)",
             (code, config.DEFAULT_INTERVAL_SEC),
         )
+    conn.execute("INSERT OR IGNORE INTO bot_settings (id) VALUES (1)")
+    conn.commit()
+
+
+def get_settings(conn: sqlite3.Connection) -> sqlite3.Row:
+    conn.row_factory = sqlite3.Row
+    return conn.execute("SELECT * FROM bot_settings WHERE id = 1").fetchone()
+
+
+def set_post_channel(conn: sqlite3.Connection, channel_id: int) -> None:
+    conn.execute("UPDATE bot_settings SET post_channel_id = ? WHERE id = 1", (channel_id,))
+    conn.commit()
+
+
+def set_log_channel(conn: sqlite3.Connection, channel_id: int) -> None:
+    conn.execute("UPDATE bot_settings SET log_channel_id = ? WHERE id = 1", (channel_id,))
     conn.commit()
 
 

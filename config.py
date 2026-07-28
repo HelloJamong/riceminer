@@ -13,7 +13,6 @@ def _require(name: str) -> str:
 
 
 DISCORD_TOKEN: str = _require("DISCORD_TOKEN")
-CHANNEL_ID: int = int(_require("CHANNEL_ID"))
 
 # 하한/기본 크롤링 주기는 DDoS 탐지 회피를 위한 하드 상수 — .env로 우회 불가
 MIN_INTERVAL_SEC = 60

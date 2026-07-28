@@ -29,12 +29,18 @@ class ArcaCrawler(Crawler):
             thumb_el = row.css("a.title.preview-image img")
             src = thumb_el[0].attrib.get("src") if thumb_el else None
             thumbnail = ("https:" + src) if src and src.startswith("//") else src
+            price_el = row.css("span.deal-price")
+            price = str(price_el[0].text).strip() if price_el else None
+            shipping_el = row.css("span.deal-delivery")
+            shipping = str(shipping_el[0].text).strip() if shipping_el else None
             posts.append(
                 Post(
                     site=self.site_code,
                     title=title,
                     url=page.urljoin(href),
                     thumbnail=thumbnail,
+                    price=price,
+                    shipping=shipping,
                 )
             )
         return posts

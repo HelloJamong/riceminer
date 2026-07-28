@@ -10,6 +10,8 @@ class Post:
     title: str
     url: str
     thumbnail: str | None
+    price: str | None = None
+    shipping: str | None = None
 
 
 class Crawler(ABC):

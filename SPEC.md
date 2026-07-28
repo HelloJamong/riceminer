@@ -18,7 +18,7 @@ Discord 슬래시 명령어로 사이트별 크롤링 ON/OFF, 주기 조정을 �
 ```bash
 pip install "scrapling[fetchers]" discord.py python-dotenv
 scrapling install              # Scrapling StealthyFetcher(camoufox) 브라우저 의존성
-cp .env.example .env           # DISCORD_TOKEN, CHANNEL_ID 채우기
+cp .env.example .env           # DISCORD_TOKEN 채우기 (채널은 봇 추가 후 /channel set으로 지정)
 python bot.py                  # 로컬 실행
 
 pytest                         # 테스트 (라이브 크롤링 없음, 저장된 HTML fixture 사용)
@@ -33,6 +33,8 @@ docker compose up -d           # 상시 운영 (Dockerfile 없이 Scrapling 공�
 | `/site on <code>` / `/site off <code>` | 사이트별 크롤링 ON/OFF |
 | `/interval set <code> <seconds>` | 사이트별 크롤링 주기 변경 (하한 60초 강제) |
 | `/interval get <code>` | 현재 적용 주기 조회 |
+| `/channel set <post\|log> <채널>` | 게시글 전송 채널(post) / 에러 로그 채널(log) 지정 |
+| `/channel get` | 현재 지정된 post/log 채널 조회 |
 
 명령어 권한은 채널이 속한 서버의 관리자 role로 제한 (`default_member_permissions`).
 
@@ -151,13 +153,14 @@ YY.메이저.마이너   예: 26.1.0
 - `crawlers/base.py` + `arca.py`/`quasarzone.py`/`fmkorea.py` + `tests/test_crawlers.py` (3개 사이트 fixture 기반, 실사이트 라이브 크롤링으로 필드 검증까지 완료)
 - `scheduler.py`(순차 방문, 매 tick 재조회, 하한 방어적 재검증, 예외 격리, dedup 후 큐 전달) + `tests/test_scheduler.py`
 - `docker-compose.yml`, `.env.example`
-- `bot.py`: Discord 로그인, 슬래시 명령어(`/site list|on|off`, `/interval set|get`, 관리자 권한 제한, `SITE_CODES` 검증, `set_interval`의 `ValueError` → 에러 메시지 노출), `format_embed(post: Post) -> discord.Embed` 순수 함수, `scheduler.py`의 `asyncio.Queue`를 소비하는 백그라운드 태스크. `ruff check .` / `python -m pytest` 통과 확인.
+- `bot.py`: Discord 로그인, 슬래시 명령어(`/site list|on|off`, `/interval set|get`, `/channel set|get`, 관리자 권한 제한, `SITE_CODES` 검증, `set_interval`의 `ValueError` → 에러 메시지 노출), `format_embed(post: Post) -> discord.Embed` 순수 함수, `scheduler.py`의 `asyncio.Queue`를 소비하는 백그라운드 태스크. `ruff check .` / `python -m pytest` 통과 확인.
+- 게시글 전송 채널(post)·에러 로그 채널(log)을 `.env` 고정값 대신 `bot_settings` 테이블에 저장, `/channel set`으로 봇 추가 후 운영 중 지정 가능. 크롤링 실패·임베드 전송 실패 시 `Scheduler(on_error=...)` 콜백으로 log 채널에도 통지 (미설정 시 파일 로그만).
+- `Post`에 `price`/`shipping` 필드 추가, 임베드에 사이트명(author)·가격·배송비 표시.
+- 썸네일을 외부 URL로 링크하지 않고 봇이 직접 다운로드해 Discord 첨부파일로 전송(`fetch_thumbnail_file`). 일부 이미지 CDN(Cloudflare)이 기본 HTTP 클라이언트 UA를 차단해 링크 임베드가 깨지는 문제 회피용 — 브라우저 UA + Referer 헤더로 다운로드.
+- 실사용 검증(수동): 테스트 Discord 서버에서 `/channel set`, `/site list`, 임베드 전송(썸네일·가격·배송비 포함) 확인 완료. 정상 스케줄러 운영으로 전환.
 
 **남은 작업**
-- **수동 검증 필요(자동화 불가)**: 테스트용 Discord 서버·봇 토큰으로 실제 슬래시 명령어·임베드 전송 확인. 진행 전 준비 여부 확인.
+- 없음 — 정상 운영 중. FM코리아는 사이트 자체 요청 제한(430)에 걸리면 해당 tick만 스킵되고 자동 회복됨(코드 대응 불필요, 예외 격리로 이미 처리됨).
 
 **Phase 6 — 통합 검증 (미착수)**
 - `docker compose up -d`로 실제 기동 확인, 로그에 시크릿 노출 없는지 확인 후 `docker compose down`
-
-**보류/결정 필요**
-- `Post`에 `price`/`posted_at` 필드 추가 여부 (현재 title/url/thumbnail만 구현)

@@ -2,7 +2,6 @@ import os
 import sqlite3
 
 os.environ.setdefault("DISCORD_TOKEN", "test_token")
-os.environ.setdefault("CHANNEL_ID", "111222333")
 
 import db  # noqa: E402
 import config  # noqa: E402
@@ -46,6 +45,23 @@ def test_set_interval_accepts_at_and_above_floor():
     assert db.get_site(conn, "arca")["interval_sec"] == config.MIN_INTERVAL_SEC
     db.set_interval(conn, "arca", config.MIN_INTERVAL_SEC + 1)
     assert db.get_site(conn, "arca")["interval_sec"] == config.MIN_INTERVAL_SEC + 1
+
+
+def test_settings_default_unset():
+    conn = _memory_db()
+    settings = db.get_settings(conn)
+    assert settings["post_channel_id"] is None
+    assert settings["log_channel_id"] is None
+
+
+def test_set_post_and_log_channel_persist_independently():
+    conn = _memory_db()
+    db.set_post_channel(conn, 111)
+    assert db.get_settings(conn)["post_channel_id"] == 111
+    assert db.get_settings(conn)["log_channel_id"] is None
+    db.set_log_channel(conn, 222)
+    assert db.get_settings(conn)["post_channel_id"] == 111
+    assert db.get_settings(conn)["log_channel_id"] == 222
 
 
 def test_dedup_round_trip_and_idempotent():

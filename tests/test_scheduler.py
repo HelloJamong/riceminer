@@ -4,7 +4,6 @@ import sqlite3
 from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault("DISCORD_TOKEN", "test_token")
-os.environ.setdefault("CHANNEL_ID", "111222333")
 
 import config  # noqa: E402
 import db  # noqa: E402
@@ -101,6 +100,49 @@ def test_new_posts_deduped_and_queued():
     items = asyncio.run(scenario())
     assert items == [post]
     assert db.is_seen(conn, "arca", post.url) is True
+
+
+def test_on_error_called_with_site_code_on_crawl_failure():
+    conn = _memory_db()
+    crawlers = {}
+    for code in config.SITE_CODES:
+        error = RuntimeError("403") if code == "arca" else None
+        crawlers[code] = FakeCrawler(code, error=error)
+    errors: list[tuple[str, str]] = []
+
+    async def on_error(site_code, message):
+        errors.append((site_code, message))
+
+    async def scenario():
+        sched = _make_scheduler(conn, crawlers)
+        sched.on_error = on_error
+        with patch("scheduler.asyncio.sleep", new=AsyncMock()):
+            await sched.tick()
+
+    asyncio.run(scenario())
+    assert len(errors) == 1
+    assert errors[0][0] == "arca"
+
+
+def test_on_error_failure_does_not_abort_tick():
+    conn = _memory_db()
+    call_log: list[str] = []
+    crawlers = {}
+    for code in config.SITE_CODES:
+        error = RuntimeError("403") if code == "arca" else None
+        crawlers[code] = FakeCrawler(code, error=error, call_log=call_log)
+
+    async def on_error(site_code, message):
+        raise RuntimeError("log 채널 전송도 실패")
+
+    async def scenario():
+        sched = _make_scheduler(conn, crawlers)
+        sched.on_error = on_error
+        with patch("scheduler.asyncio.sleep", new=AsyncMock()):
+            await sched.tick()
+
+    asyncio.run(scenario())
+    assert call_log == list(config.SITE_CODES)
 
 
 def test_floor_respected_across_ticks_even_with_low_db_value():

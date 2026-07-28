@@ -28,12 +28,22 @@ class QuasarzoneCrawler(Crawler):
                 continue
             thumb_el = row.css("div.thumb-wrap img")
             thumbnail = thumb_el[0].attrib.get("src") if thumb_el else None
+            price_el = row.css(".market-info-sub .text-orange")
+            price = str(price_el[0].text).strip() if price_el else None
+            shipping = None
+            for span in row.css(".market-info-sub p > span"):
+                text = str(span.text or "").strip()
+                if text.startswith("배송비"):
+                    shipping = text.removeprefix("배송비").strip()
+                    break
             posts.append(
                 Post(
                     site=self.site_code,
                     title=title,
                     url=page.urljoin(href),
                     thumbnail=thumbnail,
+                    price=price,
+                    shipping=shipping,
                 )
             )
         return posts

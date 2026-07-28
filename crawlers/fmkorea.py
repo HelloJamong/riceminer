@@ -29,12 +29,25 @@ class FmkoreaCrawler(Crawler):
             thumb_el = row.css("img.thumb")
             src = thumb_el[0].attrib.get("data-original") if thumb_el else None
             thumbnail = ("https:" + src) if src and src.startswith("//") else src
+            price = None
+            shipping = None
+            for span in row.css("div.hotdeal_info span"):
+                label = str(span.text or "")
+                a = span.css("a")
+                if not a:
+                    continue
+                if "가격" in label:
+                    price = str(a[0].text).strip()
+                elif "배송" in label:
+                    shipping = str(a[0].text).strip()
             posts.append(
                 Post(
                     site=self.site_code,
                     title=title,
                     url=page.urljoin(href),
                     thumbnail=thumbnail,
+                    price=price,
+                    shipping=shipping,
                 )
             )
         return posts

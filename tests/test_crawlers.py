@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 os.environ.setdefault("DISCORD_TOKEN", "test_token")
-os.environ.setdefault("CHANNEL_ID", "111222333")
 
 from crawlers.arca import ArcaCrawler  # noqa: E402
 from crawlers.quasarzone import QuasarzoneCrawler  # noqa: E402
@@ -27,15 +26,21 @@ def test_arca_parses_fixture():
     posts = ArcaCrawler().parse(_fixture("arca.html"))
     _assert_valid_posts(posts, "arca")
     assert any(p.thumbnail for p in posts)
+    assert any(p.price for p in posts)
+    assert any(p.shipping for p in posts)
 
 
 def test_quasarzone_parses_fixture():
     posts = QuasarzoneCrawler().parse(_fixture("quasarzone.html"))
     _assert_valid_posts(posts, "quasarzone")
     assert any(p.thumbnail for p in posts)
+    assert any(p.price for p in posts)
+    assert any(p.shipping for p in posts)
 
 
 def test_fmkorea_parses_fixture():
     posts = FmkoreaCrawler().parse(_fixture("fmkorea.html"))
     _assert_valid_posts(posts, "fmkorea")
     assert any(p.thumbnail for p in posts)
+    assert any(p.price for p in posts)
+    assert any(p.shipping for p in posts)
