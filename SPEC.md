@@ -148,7 +148,7 @@ YY.메이저.마이너   예: 26.1.0
   docker push riceminer:latest && docker push riceminer:YY.메이저.마이너
   ```
 - 배포된 컨테이너 갱신은 digest(SHA256) 비교 기반 자동 업데이트로 구성 (`latest` 태그 기준). `diun` 또는 `docker manifest inspect`를 이용한 폴링 스크립트로 감지 후 `docker compose pull && docker compose up -d`.
-- **현재 상태(의도적 보류)**: 위 push 절차는 문서화만 돼 있고 아직 실행/자동화 안 함. GitHub Actions 워크플로우(`.github/workflows`)도 없음 — `DOCKER_USERNAME`/`DOCKER_PASSWORD` 리포지토리 시크릿은 등록돼 있지만 소비하는 워크플로우가 없는 상태. 로컬 `docker compose build`로 이미지를 빌드해 자체 호스팅으로만 운영 중이며, CI/CD·Docker Hub 배포 자동화는 명시적 요청이 있을 때 별도로 진행한다.
+- **현재 상태**: `.github/workflows/release.yml`이 위 push 절차를 자동화함 — `YY.메이저.마이너` 형식 태그 push 시 `DOCKER_USERNAME`/`DOCKER_PASSWORD` 시크릿으로 Docker Hub에 `latest`+버전 태그 push, CHANGELOG 해당 버전 섹션을 본문으로 GitHub Release 생성(첨부: `docker-compose.yml`, `env.example`). GitHub Release 자산 파일명은 `.`으로 시작할 수 없어 `.env.example`은 `env.example`로 올라감 — 다운로드 후 `.env`로 이름만 바꾸면 됨. digest 비교 기반 자동 업데이트(diun 등)는 아직 미구성.
 
 ## 8. 진행 상태 및 다음 단계
 
