@@ -8,7 +8,7 @@ from typing import Awaitable, Callable
 import config
 import db
 from crawlers.arca import ArcaCrawler
-from crawlers.base import Post
+from crawlers.base import BlockedError, Post
 from crawlers.fmkorea import FmkoreaCrawler
 from crawlers.quasarzone import QuasarzoneCrawler
 
@@ -22,6 +22,7 @@ CRAWLERS = {
 
 JITTER_RANGE_SEC = (1, 5)
 POLL_INTERVAL_SEC = 5
+BLOCK_COOLDOWN_SEC = 30 * 60
 
 
 def effective_interval(interval_sec: int) -> int:
@@ -43,6 +44,8 @@ class Scheduler:
         self.on_error = on_error
         self.crawlers = {code: cls() for code, cls in CRAWLERS.items()}
         self._last_run: dict[str, float] = {}
+        # ponytail: 재시작하면 초기화되는 인메모리 쿨다운 — DB 영속화는 YAGNI
+        self._blocked_until: dict[str, float] = {}
 
     async def run_forever(self) -> None:
         while True:
@@ -60,6 +63,9 @@ class Scheduler:
             if crawler is None:
                 continue
 
+            if now < self._blocked_until.get(code, 0.0):
+                continue
+
             interval = effective_interval(site["interval_sec"])
             last = self._last_run.get(code, 0.0)
             if now - last < interval:
@@ -67,6 +73,23 @@ class Scheduler:
 
             try:
                 posts = await crawler.run()
+            except BlockedError as exc:
+                logger.warning(
+                    "차단 추정: %s (HTTP %s) — %d분간 재시도 중단",
+                    code, exc.status, BLOCK_COOLDOWN_SEC // 60,
+                )
+                self._blocked_until[code] = now + BLOCK_COOLDOWN_SEC
+                if self.on_error:
+                    try:
+                        await self.on_error(
+                            code,
+                            f"차단 추정 (HTTP {exc.status}) — {BLOCK_COOLDOWN_SEC // 60}분간 재시도 중단",
+                        )
+                    except Exception:
+                        logger.exception("에러 리포트 전송 실패")
+                self._last_run[code] = time.monotonic()
+                await asyncio.sleep(random.uniform(*JITTER_RANGE_SEC))
+                continue
             except Exception as exc:
                 logger.exception("크롤링 실패: %s", code)
                 if self.on_error:

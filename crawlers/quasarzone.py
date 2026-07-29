@@ -9,7 +9,7 @@ class QuasarzoneCrawler(Crawler):
 
     async def fetch(self) -> str:
         response = await AsyncFetcher.get(self.list_url)
-        return response.html_content
+        return self._check_status(response)
 
     def parse(self, html: str) -> list[Post]:
         page = self._page(html)

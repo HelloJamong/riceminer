@@ -7,7 +7,7 @@ os.environ.setdefault("DISCORD_TOKEN", "test_token")
 
 import config  # noqa: E402
 import db  # noqa: E402
-from crawlers.base import Post  # noqa: E402
+from crawlers.base import BlockedError, Post  # noqa: E402
 from scheduler import Scheduler, effective_interval  # noqa: E402
 
 
@@ -143,6 +143,51 @@ def test_on_error_failure_does_not_abort_tick():
 
     asyncio.run(scenario())
     assert call_log == list(config.SITE_CODES)
+
+
+def test_blocked_error_sets_cooldown_and_skips_until_expiry():
+    conn = _memory_db()
+    crawlers = {}
+    for code in config.SITE_CODES:
+        error = BlockedError(430) if code == "fmkorea" else None
+        crawlers[code] = FakeCrawler(code, error=error)
+    fmkorea = crawlers["fmkorea"]
+
+    async def scenario():
+        sched = _make_scheduler(conn, crawlers)
+        with patch("scheduler.asyncio.sleep", new=AsyncMock()):
+            with patch("scheduler.time.monotonic", return_value=1000.0):
+                await sched.tick()  # 차단 감지 → 30분 쿨다운 시작
+            with patch("scheduler.time.monotonic", return_value=1000.0 + 200):
+                await sched.tick()  # interval(180초)은 지났지만 쿨다운(30분) 중이라 스킵돼야 함
+            with patch("scheduler.time.monotonic", return_value=1000.0 + 1801):
+                await sched.tick()  # 30분+1초 후: 쿨다운 해제, 재시도돼야 함
+
+    asyncio.run(scenario())
+    assert fmkorea.call_count == 2
+
+
+def test_on_error_called_with_blocked_message():
+    conn = _memory_db()
+    crawlers = {}
+    for code in config.SITE_CODES:
+        error = BlockedError(430) if code == "fmkorea" else None
+        crawlers[code] = FakeCrawler(code, error=error)
+    errors: list[tuple[str, str]] = []
+
+    async def on_error(site_code, message):
+        errors.append((site_code, message))
+
+    async def scenario():
+        sched = _make_scheduler(conn, crawlers)
+        sched.on_error = on_error
+        with patch("scheduler.asyncio.sleep", new=AsyncMock()):
+            await sched.tick()
+
+    asyncio.run(scenario())
+    assert len(errors) == 1
+    assert errors[0][0] == "fmkorea"
+    assert "차단" in errors[0][1]
 
 
 def test_floor_respected_across_ticks_even_with_low_db_value():

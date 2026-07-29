@@ -14,6 +14,14 @@ class Post:
     shipping: str | None = None
 
 
+class BlockedError(Exception):
+    """비정상 HTTP 상태 코드 — 사이트 차단으로 추정될 때 발생시킨다."""
+
+    def __init__(self, status: int):
+        self.status = status
+        super().__init__(f"차단 추정 (HTTP {status})")
+
+
 class Crawler(ABC):
     site_code: str
     list_url: str
@@ -28,6 +36,11 @@ class Crawler(ABC):
 
     def _page(self, html: str) -> Adaptor:
         return Adaptor(html, url=self.list_url)
+
+    def _check_status(self, response) -> str:
+        if response.status != 200:
+            raise BlockedError(response.status)
+        return response.html_content
 
     async def run(self) -> list[Post]:
         html = await self.fetch()

@@ -6,8 +6,15 @@ os.environ.setdefault("DISCORD_TOKEN", "test_token")
 from crawlers.arca import ArcaCrawler  # noqa: E402
 from crawlers.quasarzone import QuasarzoneCrawler  # noqa: E402
 from crawlers.fmkorea import FmkoreaCrawler  # noqa: E402
+from crawlers.base import BlockedError  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+class _FakeResponse:
+    def __init__(self, status, html_content=""):
+        self.status = status
+        self.html_content = html_content
 
 
 def _fixture(name: str) -> str:
@@ -44,3 +51,16 @@ def test_fmkorea_parses_fixture():
     assert any(p.thumbnail for p in posts)
     assert any(p.price for p in posts)
     assert any(p.shipping for p in posts)
+
+
+def test_check_status_raises_blocked_error_on_non_200():
+    try:
+        ArcaCrawler()._check_status(_FakeResponse(430))
+        assert False, "BlockedError를 발생시켜야 함"
+    except BlockedError as exc:
+        assert exc.status == 430
+
+
+def test_check_status_returns_html_on_200():
+    html = ArcaCrawler()._check_status(_FakeResponse(200, "<html></html>"))
+    assert html == "<html></html>"
