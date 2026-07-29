@@ -12,6 +12,15 @@
   - `/interval set|get <code> <seconds>`: 사이트별 크롤링 주기 조정
 - DDoS 탐지 회피: 하드 하한 60초 인터벌(명령어로도 우회 불가) + 기본 180초 + 랜덤 지터 + 순차 요청
 
+## 실행
+
+[Releases](https://github.com/HelloJamong/riceminer/releases/latest)에서 `docker-compose.yml`, `env.example`을 받아 실행한다.
+
+```bash
+mv env.example .env   # DISCORD_TOKEN 채우기
+docker compose up -d
+```
+
 ## 기술 스택
 
 | 영역 | 선택 | 이유 |
