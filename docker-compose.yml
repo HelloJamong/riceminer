@@ -1,7 +1,6 @@
 services:
   riceminer:
-    build: .
-    image: riceminer:latest
+    image: igor0670/riceminer:latest
     env_file:
       - .env
     volumes:

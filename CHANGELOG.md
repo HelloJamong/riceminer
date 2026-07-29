@@ -2,6 +2,11 @@
 
 버전 형식: `YY.메이저.마이너` (예: `26.1.0`). `[Unreleased]` 섹션은 사용하지 않으며, 릴리즈 시점에 버전을 확정해 아래에 항목을 추가한다. 형식·릴리즈 절차는 [SPEC.md](./SPEC.md#7-release--versioning) 참고.
 
+## [26.1.1] - 2026-07-29
+
+### Fixed
+- `docker-compose.yml`이 `build: .`로 되어 있어 Docker Hub에서 pull만 받는 배포 환경(소스 코드 없음)에서는 실행이 불가능하던 문제 — `image: igor0670/riceminer:latest`로 고정
+
 ## [26.1.0] - 2026-07-29
 
 ### Added
